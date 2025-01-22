@@ -1,113 +1,121 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useChat } from "../hooks/useChat";
 
-export const UI = ({ hidden, ...props }) => {
-  const input = useRef();
+// Tarayıcının SpeechRecognition API'sı
+const SpeechRecognition =
+  window.SpeechRecognition || window.webkitSpeechRecognition;
+
+export const UI = ({ hidden }) => {
   const { chat, loading, cameraZoomed, setCameraZoomed, message } = useChat();
 
-  const sendMessage = () => {
-    const text = input.current.value;
-    if (!loading && !message) {
-      chat(text);
-      input.current.value = "";
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef(null);
+
+  const initSpeechRecognition = () => {
+    // Zaten oluşturduysak tekrar oluşturma
+    if (!recognitionRef.current && SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.lang = "en-US"; // veya "tr-TR"
+      recognition.interimResults = false; // Parça parça değil, tek seferde final sonuç
+      recognition.continuous = false;     // Konuşma bitince otomatik duracak
+
+      // Konuşma başarıyla metne çevrildiğinde
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        console.log("Konuşma metni:", transcript);
+
+        // Otomatik olarak OpenAI'ye gönder
+        if (transcript.trim().length > 0 && !loading && !message) {
+          chat(transcript.trim());
+        }
+
+        setListening(false);
+      };
+
+      // Hata yakalama
+      recognition.onerror = (err) => {
+        console.error("SpeechRecognition hatası:", err);
+        setListening(false);
+      };
+
+      // Kullanıcı sustuğunda veya konuşma bittiğinde
+      recognition.onend = () => {
+        console.log("Dinleme bitti");
+        setListening(false);
+      };
+
+      recognitionRef.current = recognition;
     }
   };
+
+  const startListening = () => {
+    if (!SpeechRecognition) {
+      alert("Tarayıcınız SpeechRecognition API'sını desteklemiyor.");
+      return;
+    }
+    initSpeechRecognition();
+    recognitionRef.current.start();
+    setListening(true);
+    console.log("Dinleme başlatıldı...");
+  };
+
+  const stopListening = () => {
+    recognitionRef.current?.stop();
+    setListening(false);
+    console.log("Dinleme durduruldu...");
+  };
+
   if (hidden) {
     return null;
   }
 
   return (
-    <>
-      <div className="fixed top-0 left-0 right-0 bottom-0 z-10 flex justify-between p-4 flex-col pointer-events-none">
-        <div className="self-start backdrop-blur-md bg-white bg-opacity-50 p-4 rounded-lg">
-          <h1 className="font-black text-xl">My Virtual GF</h1>
-          <p>I will always love you ❤️</p>
-        </div>
-        <div className="w-full flex flex-col items-end justify-center gap-4">
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-10 flex justify-between p-4 flex-col pointer-events-none">
+      {/* Üstteki başlık */}
+      <div className="self-start backdrop-blur-md bg-white bg-opacity-50 p-4 rounded-lg">
+        <h1 className="font-black text-xl">Assistflow.AI </h1>
+        <p>Holoxone DEMO ❤️</p>
+      </div>
+
+      {/* Kamera Zoom ve Green Screen Butonları */}
+      <div className="w-full flex flex-col items-end justify-center gap-4">
+        <button
+          onClick={() => setCameraZoomed(!cameraZoomed)}
+          className="pointer-events-auto bg-pink-500 hover:bg-pink-600 text-white p-4 rounded-md"
+        >
+          {cameraZoomed ? "Zoom Out" : "Zoom In"}
+        </button>
+        <button
+          onClick={() => {
+            document.body.classList.toggle("greenScreen");
+          }}
+          className="pointer-events-auto bg-pink-500 hover:bg-pink-600 text-white p-4 rounded-md"
+        >
+          Green
+        </button>
+      </div>
+
+      {/* Mikrofon Başla / Durdur */}
+      <div className="flex items-center gap-2 pointer-events-auto max-w-screen-sm w-full mx-auto">
+        {!listening ? (
           <button
-            onClick={() => setCameraZoomed(!cameraZoomed)}
-            className="pointer-events-auto bg-pink-500 hover:bg-pink-600 text-white p-4 rounded-md"
-          >
-            {cameraZoomed ? (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-                className="w-6 h-6"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM13.5 10.5h-6"
-                />
-              </svg>
-            ) : (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-                className="w-6 h-6"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6"
-                />
-              </svg>
-            )}
-          </button>
-          <button
-            onClick={() => {
-              const body = document.querySelector("body");
-              if (body.classList.contains("greenScreen")) {
-                body.classList.remove("greenScreen");
-              } else {
-                body.classList.add("greenScreen");
-              }
-            }}
-            className="pointer-events-auto bg-pink-500 hover:bg-pink-600 text-white p-4 rounded-md"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="w-6 h-6"
-            >
-              <path
-                strokeLinecap="round"
-                d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"
-              />
-            </svg>
-          </button>
-        </div>
-        <div className="flex items-center gap-2 pointer-events-auto max-w-screen-sm w-full mx-auto">
-          <input
-            className="w-full placeholder:text-gray-800 placeholder:italic p-4 rounded-md bg-opacity-50 bg-white backdrop-blur-md"
-            placeholder="Type a message..."
-            ref={input}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                sendMessage();
-              }
-            }}
-          />
-          <button
+            onClick={startListening}
             disabled={loading || message}
-            onClick={sendMessage}
-            className={`bg-pink-500 hover:bg-pink-600 text-white p-4 px-10 font-semibold uppercase rounded-md ${
+            className={`bg-green-500 hover:bg-green-600 text-white p-4 rounded-md ${
               loading || message ? "cursor-not-allowed opacity-30" : ""
             }`}
           >
-            Send
+            🎤 Start Recording
           </button>
-        </div>
+        ) : (
+          <button
+            onClick={stopListening}
+            className="bg-red-500 hover:bg-red-600 text-white p-4 rounded-md"
+          >
+            🔴 Stop
+          </button>
+        )}
       </div>
-    </>
+    </div>
   );
 };
